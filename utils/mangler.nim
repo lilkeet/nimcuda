@@ -72,7 +72,7 @@ type
     sizeDecider: Option[string]
     namesOfValues: seq[string]
 
-proc parseEnumDecls(code: string): seq[EnumDecl] =
+func parseEnumDecls(code: string): seq[EnumDecl] =
   ## Parses nim code and returns all the enum declarations present.
   let ast = peg"""enumDefs <- (@enumDef)*
   enumDef <- enumTypeDesc '*' (\s+ pragma)? \s+ '=' \s+ 'enum' someWs (enumName enumValue? ',' someWs)* enumName enumValue?
@@ -139,7 +139,13 @@ proc parseEnumDecls(code: string): seq[EnumDecl] =
             discard
   {.pop.}
 
-  assert myPegEventParser(code) != -1
+  # The compiler thinks this call has side effects (pointer indirection).
+  # I manually checked the output of the `eventParser` template and none of the
+  # code actually has side effects, so its probably because the
+  # `myPegEventParser` is a runtime closure proc.
+  {.cast(noSideEffect).}:
+    assert myPegEventParser(code) != -1
+
   result = enumDecls
 
 func replaceFirstInstanceOf(
@@ -158,7 +164,7 @@ type ReplacePair = tuple
   pattern: Peg
   repl: string
 
-proc getReplacePairsFromEnumValueNames*(
+func getReplacePairsFromEnumValueNames*(
     code: sink string): tuple[valueNames: seq[ReplacePair], pure: seq[string]] =
   ## Generates a set of `ReplacePair`s that will convert enums mostly
   ## into pure enums (removing the prefix in the process, but also switches the
