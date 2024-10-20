@@ -5,7 +5,7 @@
 
 import
   std / [pegs, cmdline, paths, files, strformat, strutils, sugar, sets,
-         strscans, options, sequtils, algorithm]
+         strscans, options, sequtils]
 
 {.experimental: "strictDefs".}
 {.experimental: "strictFuncs".}
@@ -153,17 +153,22 @@ func replaceFirstInstanceOf(
     result.delete firstChar..lastChar
     result.insert by, firstChar
 
+type ReplacePair = tuple
+  pattern: Peg
+  repl: string
 
-proc fixEnumValueNames*(code: sink string): string =
-  ## This proc converts enums mostly into pure enums (removing the prefix in the
-  ## process, but also switches the long-winded prefixes to short,
-  ## abbreviated ones where appropriate.
-  type ReplacePair = tuple
-    pattern: Peg
-    repl: string
+proc getReplacePairsFromEnumValueNames*(
+    code: sink string): tuple[valueNames: seq[ReplacePair], pure: seq[string]] =
+  ## Generates a set of `ReplacePair`s that will convert enums mostly
+  ## into pure enums (removing the prefix in the process, but also switches the
+  ## long-winded prefixes to short, abbreviated ones where appropriate.
+  ##
+  ## These will also mess up the declarations of the pure enums, so we
+  ## also return the names of those so that we can go back and fix it later.
+  result = (newSeqOfCap[ReplacePair](100),
+            newSeqOfCap[string](10)) # expect a lot.
 
-  var replacePairs: seq[ReplacePair] = @[]
-  var qualifiedEnums: seq[tuple[typeName: string, valueNames: seq[string]]] = @[]
+  # var qualifiedEnums: seq[tuple[typeName: string, valueNames: seq[string]]] = @[]
 
 
   for (nameOfType, sizeDecider, namesOfValues) in parseEnumDecls(code):
@@ -188,8 +193,8 @@ proc fixEnumValueNames*(code: sink string): string =
       let
         abreviatedNameOfType = nameOfType.abbrevEnum
         withAbrrevPrefix = prefixRemoved.mapIt(fmt"{abreviatedNameOfType}{it}")
-      replacePairs.add zip(namesOfValues.mapIt(nimIdentMatcher it),
-                           withAbrrevPrefix)
+      result.valueNames.add zip(namesOfValues.mapIt(nimIdentMatcher it),
+                                withAbrrevPrefix)
     else:
       # do pure enum style
       let pragmaInDecl = sizeDecider.isSome
@@ -197,58 +202,75 @@ proc fixEnumValueNames*(code: sink string): string =
         # we'll have to modify the already present pragma
         let typeDeclMatcher = sequence(term(nameOfType),
           peg" '*' \s+ '{.' ")
-        replacePairs.add (typeDeclMatcher, fmt"{nameOfType}* {{.pure, ")
+        result.valueNames.add (typeDeclMatcher, fmt"{nameOfType}* {{.pure, ")
       else:
         # we'll add the pure pragma
         let typeDeclMatcher = sequence(term(nameOfType),
           peg" '*' \s+ '=' \s+ 'enum' ")
-        replacePairs.add (typeDeclMatcher, fmt"{nameOfType}* {{.pure.}} = enum")
+        result.valueNames.add (typeDeclMatcher,
+                               fmt"{nameOfType}* {{.pure.}} = enum")
 
       # we have to fully qualify any references to the enum value identifiers
       let
         unqualified = namesOfValues.mapIt(nimIdentMatcher it)
         fullyQualified = prefixRemoved.mapIt(fmt"{nameOfType}.{it}")
-      replacePairs.add zip(unqualified, fullyQualified)
+      result.valueNames.add zip(unqualified, fullyQualified)
 
       # save the pure enums to fix the declarations later
-      qualifiedEnums.add (nameOfType, prefixRemoved)
+      result.pure.add nameOfType
 
 
-  result = code.parallelReplace(replacePairs)
+  # result = code.parallelReplace(replacePairs)
 
   # we replaced all instances of each pure enum's values with a fully qualified
   # version of it, like `myEnumTypeDesc.MyEnumName`, including inside the
   # declaration of this enum.
   # So lets fix that.
 
-  while qualifiedEnums.len > 0:
-    var valueNames: seq[string]
-    let typeName: string
-    (typeName, valueNames) = qualifiedEnums.pop
+  # while qualifiedEnums.len > 0:
+  #   var valueNames: seq[string]
+  #   let typeName: string
+  #   (typeName, valueNames) = qualifiedEnums.pop
+  #
+  #   let startOfDecl = result.find(fmt"{typeName}* {{.pure")
+  #
+  #   # First, we must sort so that the longer names are replaced first.
+  #   # E.g., `myEnumType.Value10` before `myEnumType.Value1`
+  #   for valueName in valueNames.sorted(SortOrder.Descending):
+  #     let qualified = fmt"{typeName}.{valueName}"
+  #     result = result.replaceFirstInstanceOf(qualified, valueName, startOfDecl)
 
-    let startOfDecl = result.find(fmt"{typeName}* {{.pure")
 
-    # First, we must sort so that the longer names are replaced first.
-    # E.g., `myEnumType.Value10` before `myEnumType.Value1`
-    for valueName in valueNames.sorted(SortOrder.Descending):
-      let qualified = fmt"{typeName}.{valueName}"
-      result = result.replaceFirstInstanceOf(qualified, valueName, startOfDecl)
-
-
-proc mangle*(code: sink string): string =
-  result = code.fixEnumValueNames()
+# proc mangle*(code: sink string): string =
+#   result = code.fixEnumValueNames()
 
 
 proc main =
-  for arg in commandLineParams():
-    assert (Path arg).fileExists, fmt "Bad argument! '{arg}' doesn't exist."
+  var
+    valueNames = newSeqOfCap[ReplacePair](1000)
+    pures = newSeqOfCap[tuple[file: Path, pures: seq[string]]](100)
 
-    let
-      input = readFile(arg)
-      mangled = input.mangle()
+  let files = commandLineParams().mapIt(Path it)
 
-    writeFile arg, mangled
-    echo fmt"Mangled '{arg}'"
+  for file in files: # parsing pass
+    assert file.fileExists, fmt "Bad argument! '{string file}' doesn't exist."
+
+    let code = readFile(string file)
+
+    let (currentNames, currentPures) = code.getReplacePairsFromEnumValueNames
+    valueNames.add currentNames
+    pures.add (file, currentPures)
+
+    # writeFile arg, mangled
+    echo fmt"Parsed '{string file}' for mangling."
+
+  for file in files: # first modifying pass
+    assert file.fileExists, fmt "Error! '{string file}' doesn't exist."
+
+    let code = readFile(string file)
+
+    writeFile (string file), code.parallelReplace(valueNames)
+    echo fmt"Mangled '{string file}'."
 
 
 
