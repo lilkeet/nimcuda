@@ -257,27 +257,24 @@ proc main =
     valueNames = newSeqOfCap[ReplacePair](1000)
     pures = newSeqOfCap[tuple[file: Path, pures: seq[string]]](100)
 
-  let files = commandLineParams().mapIt(Path it)
+  let paths = commandLineParams().mapIt(Path it)
+  for path in paths:
+    assert path.fileExists, fmt "Bad argument! '{string path}' doesn't exist."
 
-  for file in files: # parsing pass
-    assert file.fileExists, fmt "Bad argument! '{string file}' doesn't exist."
+  let files = paths.mapIt((it, readFile(string it)))
 
-    let code = readFile(string file)
+  for (p, code) in files: # parsing pass
 
     let (currentNames, currentPures) = code.getReplacePairsFromEnumValueNames
     valueNames.add currentNames
-    pures.add (file, currentPures)
+    pures.add (p, currentPures)
 
     # writeFile arg, mangled
-    echo fmt"Parsed '{string file}' for mangling."
+    echo fmt"Parsed '{string p}' for mangling."
 
-  for file in files: # first modifying pass
-    assert file.fileExists, fmt "Error! '{string file}' doesn't exist."
-
-    let code = readFile(string file)
-
-    writeFile (string file), code.parallelReplace(valueNames)
-    echo fmt"Mangled '{string file}'."
+  for (p, code) in files: # first modifying pass
+    writeFile (string p), code.parallelReplace(valueNames)
+    echo fmt"Mangled '{string p}'."
 
 
 
