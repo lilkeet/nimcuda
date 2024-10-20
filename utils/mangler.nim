@@ -34,12 +34,13 @@ func commonPrefix(enumValueNames: seq[string]): string =
           cudaDeviceNumaConfigNone = 0, <- would become `one`
           cudaDeviceNumaConfigNumaNode  <- would become `umaNode`
     ]#
-  let firstCharIsSameOnAllValuesButNotPrefix = result[^2].isLowerAscii and
-    result[^1].isUpperAscii and
-    enumValueNames.mapIt(it.dup(removePrefix(result))).allIt(it[0].isLowerAscii)
+  if result.len > 2:
+    let firstCharIsSameOnAllValuesButNotPrefix = result[^2].isLowerAscii and
+      result[^1].isUpperAscii and
+      enumValueNames.mapIt(it.dup(removePrefix(result))).allIt(it[0].isLowerAscii)
 
-  if firstCharIsSameOnAllValuesButNotPrefix:
-    result = result[0..^2]
+    if firstCharIsSameOnAllValuesButNotPrefix:
+      result = result[0..^2]
 
 func nimIdentMatcher(ident: string): Peg =
   ## Returns a peg that matches the same an a Nim identifier of the input.
