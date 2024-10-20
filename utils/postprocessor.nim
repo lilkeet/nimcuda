@@ -205,7 +205,7 @@ func escapeKeyWords(code: sink string): string =
 proc postprocess*(code: sink string): string =
   result = code.mangleDefines.doSimpleSwaps.handleForwardDecls.
                 fixProcsDecls.escapeKeyWords.
-                removeUnusedVariableSilencing()
+                removeUnusedVariableSilencing.mangle()
 
 
 
