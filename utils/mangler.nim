@@ -74,7 +74,7 @@ type
 proc parseEnumDecls(code: string): seq[EnumDecl] =
   ## Parses nim code and returns all the enum declarations present.
   let ast = peg"""enumDefs <- (@enumDef)*
-  enumDef <- enumTypeDesc '*' (\s+ pragma)? \s+ '=' \s+ 'enum' \s+ (enumName enumValue? ',' (\s / someComment)+)* enumName enumValue?
+  enumDef <- enumTypeDesc '*' (\s+ pragma)? \s+ '=' \s+ 'enum' someWs (enumName enumValue? ',' someWs)* enumName enumValue?
 
   pragma <- '{.' \s* 'size:' \s+ 'sizeof(' sizeOfTypeDesc ').}'
   sizeOfTypeDesc <- \ident
@@ -86,6 +86,8 @@ proc parseEnumDecls(code: string): seq[EnumDecl] =
   singleLineCmt <- ('##' / '#') @\n
   multiLineCmt <- ('##[' / '#[') @(']##' / ']#')
   someComment <- multiLineCmt / singleLineCmt
+
+  someWs <- (\s / someComment)+
 
   """
 
