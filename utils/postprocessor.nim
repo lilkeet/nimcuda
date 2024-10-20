@@ -5,7 +5,9 @@
   ]##
 
 import
-  std / [pegs, cmdline, paths, files, strformat, strutils, sugar, sets, options]
+  std / [pegs, cmdline, paths, files, strformat, strutils, sugar, sets,
+    options],
+  ./[mangler]
 
 
 

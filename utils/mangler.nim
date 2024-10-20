@@ -233,6 +233,9 @@ proc fixEnumValueNames*(code: sink string): string =
       result = result.replaceFirstInstanceOf(qualified, valueName, startOfDecl)
 
 
+proc mangle*(code: sink string): string =
+  result = code.fixEnumValueNames()
+
 
 proc main =
   for arg in commandLineParams():
@@ -240,7 +243,7 @@ proc main =
 
     let
       input = readFile(arg)
-      mangled = input.fixEnumValueNames
+      mangled = input.mangle()
 
     writeFile arg, mangled
     echo fmt"Mangled '{arg}'"
