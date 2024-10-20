@@ -6,8 +6,7 @@
 
 import
   std / [pegs, cmdline, paths, files, strformat, strutils, sugar, sets,
-    options],
-  ./[mangler]
+    options]
 
 
 
@@ -205,7 +204,7 @@ func escapeKeyWords(code: sink string): string =
 proc postprocess*(code: sink string): string =
   result = code.mangleDefines.doSimpleSwaps.handleForwardDecls.
                 fixProcsDecls.escapeKeyWords.
-                removeUnusedVariableSilencing.mangle()
+                removeUnusedVariableSilencing()
 
 
 
